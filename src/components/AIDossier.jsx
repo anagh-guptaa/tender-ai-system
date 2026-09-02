@@ -3,29 +3,89 @@ import { Sparkles, ChevronDown, ChevronUp, Loader2, AlertCircle } from 'lucide-r
 import { generateTenderDossier } from '../lib/gemini'
 import { saveTenderDossier } from '../lib/api'
 
-// Renders markdown-like dossier text with basic formatting
+// Parses inline markdown like **bold**, *italic*, and `code`
+function renderInlineMarkdown(text) {
+  if (!text) return null
+  const tokenRegex = /(\*\*.*?\*\*|\*.*?\*|`.*?`)/g
+  const parts = text.split(tokenRegex)
+
+  return parts.map((part, i) => {
+    if (!part) return null
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      return (
+        <strong key={i} className="font-semibold text-ink-950">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+      return (
+        <em key={i} className="italic text-ink-800">
+          {part.slice(1, -1)}
+        </em>
+      )
+    }
+    if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+      return (
+        <code key={i} className="rounded bg-ink-900/5 px-1.5 py-0.5 font-mono text-xs text-ink-900">
+          {part.slice(1, -1)}
+        </code>
+      )
+    }
+    return part
+  })
+}
+
+// Renders markdown dossier text in a clean, human-readable format
 function DossierText({ text }) {
+  if (!text) return null
   const lines = text.split('\n')
+
   return (
-    <div className="flex flex-col gap-2 text-sm text-ink-900 leading-relaxed">
-      {lines.map((line, i) => {
-        if (line.startsWith('## ')) {
+    <div className="flex flex-col gap-2 text-sm text-ink-900 leading-relaxed pt-1">
+      {lines.map((rawLine, i) => {
+        const line = rawLine.trim()
+        if (!line) return null
+
+        // Check for Section Headers (#, ##, ###, #### or short standalone title names)
+        const isHeading =
+          line.startsWith('#') ||
+          /^(TL;DR|Scope of Work|Key Requirements|Financial Snapshot|Risk Flags|AI Recommendation|Recommendation)$/i.test(
+            line.replace(/\*\*/g, '').trim()
+          )
+
+        if (isHeading) {
+          const titleText = line.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim()
           return (
-            <h3 key={i} className="mt-3 font-display text-base font-semibold text-ink-900 first:mt-0">
-              {line.replace('## ', '')}
+            <h3
+              key={i}
+              className="mt-4 first:mt-1 mb-1 font-display text-base font-semibold text-ink-900 border-b border-brass-500/20 pb-1 flex items-center gap-2"
+            >
+              {titleText}
             </h3>
           )
         }
-        if (line.startsWith('- ') || line.startsWith('• ')) {
+
+        // Check for Bullet Items (- , * , • , + , or 1. , 2. )
+        const isBullet = /^(?:[-*•+]\s+|\d+\.\s+)/.test(line)
+        if (isBullet) {
+          const content = line.replace(/^(?:[-*•+]\s+|\d+\.\s+)/, '')
           return (
-            <div key={i} className="flex gap-2">
+            <div key={i} className="flex items-start gap-2.5 pl-1 my-0.5">
               <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brass-500" />
-              <span>{line.replace(/^[-•]\s/, '')}</span>
+              <div className="flex-1 text-sm text-ink-900 leading-relaxed">
+                {renderInlineMarkdown(content)}
+              </div>
             </div>
           )
         }
-        if (line.trim() === '') return null
-        return <p key={i}>{line}</p>
+
+        // Regular Paragraph
+        return (
+          <p key={i} className="text-sm text-ink-900 leading-relaxed my-0.5">
+            {renderInlineMarkdown(line)}
+          </p>
+        )
       })}
     </div>
   )
