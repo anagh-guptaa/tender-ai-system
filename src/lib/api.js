@@ -27,44 +27,127 @@ export async function upsertCompanyProfile(profile) {
 
 // ── TENDERS ───────────────────────────────────────────────────────────────────
 
+export async function createTender(tenderData) {
+  // Always persist to local cache so custom tenders are 100% reliable in demo mode
+  const localUploaded = JSON.parse(localStorage.getItem('dossier_uploaded_tenders') || '[]')
+  const filtered = localUploaded.filter((t) => t.id !== tenderData.id)
+  localStorage.setItem('dossier_uploaded_tenders', JSON.stringify([tenderData, ...filtered]))
+
+  if (supabase) {
+    try {
+      // Filter payload strictly to columns matching public.tenders schema
+      const dbPayload = {
+        id: tenderData.id,
+        title: tenderData.title,
+        organization: tenderData.organization,
+        category: tenderData.category,
+        location: tenderData.location,
+        estimated_value: tenderData.estimated_value,
+        emd: tenderData.emd,
+        published_at: tenderData.published_at || new Date().toISOString().split('T')[0],
+        closing_at: tenderData.closing_at,
+        status: tenderData.status || 'Open',
+        source_portal: tenderData.source_portal || 'Custom Upload (PDF)',
+        description: tenderData.description,
+        eligibility: tenderData.eligibility || [],
+        documents_required: tenderData.documents_required || [],
+        ai_dossier: tenderData.ai_dossier || tenderData.markdown_report || null,
+        created_at: tenderData.created_at || new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from('tenders')
+        .upsert([dbPayload], { onConflict: 'id' })
+        .select()
+        .single()
+      if (!error && data) return { ...tenderData, ...data }
+      if (error) console.warn('Supabase tender upsert notice:', error.message)
+    } catch (err) {
+      console.warn('Supabase tender insert failed, persisting via local cache:', err.message)
+    }
+  }
+  return tenderData
+}
+
 export async function getTenders({ query = '', category = 'All', status = 'All' } = {}) {
-  let q = supabase.from('tenders').select('*').order('closing_at', { ascending: true })
-  if (category !== 'All') q = q.eq('category', category)
-  if (status !== 'All') q = q.eq('status', status)
+  let dbTenders = []
+  if (supabase) {
+    let q = supabase.from('tenders').select('*').order('closing_at', { ascending: true })
+    if (category !== 'All') q = q.eq('category', category)
+    if (status !== 'All') q = q.eq('status', status)
+    if (query) {
+      q = q.or(
+        `title.ilike.%${query}%,organization.ilike.%${query}%,id.ilike.%${query}%`
+      )
+    }
+    const { data, error } = await q.catch(() => ({ data: [] }))
+    if (!error && data) dbTenders = data
+  }
+
+  // Merge with any custom uploaded tenders
+  const localUploaded = JSON.parse(localStorage.getItem('dossier_uploaded_tenders') || '[]')
+  const map = new Map()
+  dbTenders.forEach((t) => map.set(t.id, t))
+  localUploaded.forEach((t) => map.set(t.id, t))
+  let combined = Array.from(map.values())
+
+  if (category !== 'All') combined = combined.filter((t) => t.category === category)
+  if (status !== 'All') combined = combined.filter((t) => t.status === status)
   if (query) {
-    q = q.or(
-      `title.ilike.%${query}%,organization.ilike.%${query}%,id.ilike.%${query}%`
+    const qLower = query.toLowerCase()
+    combined = combined.filter(
+      (t) =>
+        t.title?.toLowerCase().includes(qLower) ||
+        t.organization?.toLowerCase().includes(qLower) ||
+        t.id?.toLowerCase().includes(qLower)
     )
   }
-  const { data, error } = await q
-  if (error) throw error
-  return data
+  return combined
 }
 
 export async function getTenderById(id) {
-  const { data, error } = await supabase
-    .from('tenders')
-    .select('*')
-    .eq('id', id)
-    .single()
-  if (error) throw error
-  return data
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('tenders')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (!error && data) return data
+  }
+  // Check local uploaded tenders
+  const localUploaded = JSON.parse(localStorage.getItem('dossier_uploaded_tenders') || '[]')
+  const localMatch = localUploaded.find((t) => t.id === id)
+  if (localMatch) return localMatch
+
+  throw new Error('Tender not found')
 }
 
 export async function saveTenderDossier(tenderId, dossierText) {
-  const { error } = await supabase
-    .from('tenders')
-    .update({ ai_dossier: dossierText, ai_parsed_at: new Date().toISOString() })
-    .eq('id', tenderId)
-  if (error) throw error
+  // Update local uploaded cache if applicable
+  const localUploaded = JSON.parse(localStorage.getItem('dossier_uploaded_tenders') || '[]')
+  const updatedLocal = localUploaded.map((t) =>
+    t.id === tenderId ? { ...t, ai_dossier: dossierText, ai_parsed_at: new Date().toISOString() } : t
+  )
+  localStorage.setItem('dossier_uploaded_tenders', JSON.stringify(updatedLocal))
+
+  if (supabase) {
+    const { error } = await supabase
+      .from('tenders')
+      .update({ ai_dossier: dossierText, ai_parsed_at: new Date().toISOString() })
+      .eq('id', tenderId)
+    if (error) console.warn('Failed to cache dossier in Supabase:', error.message)
+  }
 }
 
 export async function getTenderCategories() {
-  const { data, error } = await supabase
-    .from('tenders')
-    .select('category')
-  if (error) throw error
-  return [...new Set(data.map((t) => t.category).filter(Boolean))]
+  const categoriesSet = new Set()
+  if (supabase) {
+    const { data } = await supabase.from('tenders').select('category').catch(() => ({ data: [] }))
+    if (data) data.forEach((r) => r.category && categoriesSet.add(r.category))
+  }
+  const localUploaded = JSON.parse(localStorage.getItem('dossier_uploaded_tenders') || '[]')
+  localUploaded.forEach((t) => t.category && categoriesSet.add(t.category))
+  return Array.from(categoriesSet)
 }
 
 // ── APPLICATIONS ──────────────────────────────────────────────────────────────
