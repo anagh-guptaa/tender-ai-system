@@ -58,6 +58,12 @@ create policy "Tenders: authenticated read"
   on public.tenders for select
   using (auth.role() = 'authenticated');
 
+-- Authenticated users can insert newly uploaded/ingested tenders
+create policy "Tenders: authenticated insert"
+  on public.tenders for insert
+  with check (auth.role() = 'authenticated');
+
+
 
 -- ── APPLICATIONS ───────────────────────────────────────────
 create table public.applications (

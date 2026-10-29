@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, MapPin, Building2, ArrowUpRight, Loader2, Sparkles } from 'lucide-react'
+import { Search, MapPin, Building2, ArrowUpRight, Loader2, Sparkles, UploadCloud } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { StatusPill } from '../components/Seal'
 import { getTenders, getTenderCategories } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
 import { tenders as mockTenders, categories as mockCategories, statuses } from '../lib/mockTenders'
+import UploadTenderModal from '../components/UploadTenderModal'
 
 export default function Dashboard() {
   const [query, setQuery] = useState('')
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [tenders, setTenders] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
 
   useEffect(() => {
     if (supabase) {
@@ -50,15 +52,24 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-1">
-        <p className="font-mono text-xs uppercase tracking-widest text-brass-600">
-          Register — {tenders.length} listings indexed
-        </p>
-        <h1 className="font-display text-3xl font-medium text-ink-900">Tender Board</h1>
-        <p className="max-w-2xl text-sm text-signal-slate">
-          Aggregated from government and public-institute tender pages. Open a dossier to review
-          eligibility and file your application without leaving the site.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-widest text-brass-600">
+            Register — {tenders.length} listings indexed
+          </p>
+          <h1 className="font-display text-3xl font-medium text-ink-900">Tender Board</h1>
+          <p className="max-w-2xl text-sm text-signal-slate">
+            Aggregated from government and public-institute tender pages. Open a dossier to review
+            eligibility and file your application without leaving the site.
+          </p>
+        </div>
+        <button
+          onClick={() => setIsUploadModalOpen(true)}
+          className="flex shrink-0 items-center gap-2 rounded-xl bg-ink-900 px-4 py-2.5 text-xs font-semibold text-paper-50 hover:bg-ink-800 transition-colors shadow-xs"
+        >
+          <UploadCloud size={16} className="text-brass-400" />
+          Upload Tender PDF
+        </button>
       </div>
 
       <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -161,6 +172,14 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      <UploadTenderModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onTenderCreated={(newTender) => {
+          setTenders((prev) => [newTender, ...prev.filter((t) => t.id !== newTender.id)])
+        }}
+      />
     </AppLayout>
   )
 }

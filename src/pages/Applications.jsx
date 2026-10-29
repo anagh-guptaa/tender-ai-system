@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileStack, Loader2, ArrowUpRight } from 'lucide-react'
+import { FileStack, Loader2, ArrowUpRight, FileText, Download, Copy, Check, X } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { StatusPill } from '../components/Seal'
 import { useAuth } from '../context/AuthContext'
 import { getMyApplications } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 
 const STATUS_STYLES = {
   draft: 'bg-paper-100 text-signal-slate border-ink-900/10',
@@ -18,6 +19,7 @@ export default function Applications() {
   const { user } = useAuth()
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedProposal, setSelectedProposal] = useState(null)
 
   useEffect(() => {
     if (supabase && user) {
@@ -72,6 +74,7 @@ export default function Applications() {
             const closing = a.tenders?.closing_at
             const tenderId = a.tender_id || a.tenderId
             const firmName = a.form_data?.firmName || a.form?.firmName
+            const technicalProposal = a.form_data?.technicalProposal || a.form?.technicalProposal
             const quotedAmount = a.form_data?.quotedAmount || a.form?.quotedAmount
             const savedAt = a.created_at || a.submittedAt
 
@@ -90,6 +93,12 @@ export default function Applications() {
                         }`}
                       >
                         {a.status}
+                      </span>
+                    )}
+                    {technicalProposal && (
+                      <span className="flex items-center gap-1 rounded-full border border-brass-500/30 bg-brass-500/10 px-2 py-0.5 text-xs font-medium text-brass-700">
+                        <FileText size={11} />
+                        Proposal attached
                       </span>
                     )}
                   </div>
@@ -122,17 +131,122 @@ export default function Applications() {
                     </span>
                   </div>
                 </div>
-                <Link
-                  to={`/tenders/${encodeURIComponent(tenderId)}`}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-ink-900/15 px-3.5 py-2 text-xs font-medium text-ink-900 hover:border-brass-500/40 hover:text-brass-600 transition-colors"
-                >
-                  View tender <ArrowUpRight size={13} />
-                </Link>
+                <div className="flex shrink-0 items-center gap-2">
+                  {technicalProposal && (
+                    <button
+                      onClick={() => setSelectedProposal({ title, tenderId, text: technicalProposal })}
+                      className="flex items-center gap-1.5 rounded-lg border border-brass-500/40 bg-brass-500/10 px-3 py-2 text-xs font-semibold text-brass-700 hover:bg-brass-500/20 transition-colors"
+                    >
+                      <FileText size={13} /> View Proposal
+                    </button>
+                  )}
+                  <Link
+                    to={`/tenders/${encodeURIComponent(tenderId)}`}
+                    className="flex items-center gap-1.5 rounded-lg border border-ink-900/15 px-3.5 py-2 text-xs font-medium text-ink-900 hover:border-brass-500/40 hover:text-brass-600 transition-colors"
+                  >
+                    View tender <ArrowUpRight size={13} />
+                  </Link>
+                </div>
               </div>
             )
           })}
         </div>
       )}
+
+      {/* Technical Proposal View Modal */}
+      {selectedProposal && (
+        <ProposalModal
+          proposal={selectedProposal}
+          onClose={() => setSelectedProposal(null)}
+        />
+      )}
     </AppLayout>
   )
 }
+
+function ProposalModal({ proposal, onClose }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(proposal.text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function handleDownload() {
+    const filename = `${(proposal.tenderId || 'Tender').replace(/[^a-zA-Z0-9_-]/g, '_')}_Technical_Proposal.doc`
+    const header = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Technical Proposal</title><style>body{font-family:Segoe UI,Calibri,Arial,sans-serif;line-height:1.6;padding:32px;color:#10233F;max-width:800px;margin:auto;}h1{font-size:20pt;color:#10233F;border-bottom:2px solid #C9972A;padding-bottom:6px;}h2{font-size:14pt;color:#182F52;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:20pt;}table{border-collapse:collapse;width:100%;margin:12pt 0;}th,td{border:1px solid #ccc;padding:8px 12px;text-align:left;font-size:10pt;}th{background:#F5F3EC;font-weight:bold;color:#10233F;}li{margin:4pt 0;}</style></head><body>`
+    
+    let htmlContent = proposal.text
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+      .replace(/^- (.*$)/gim, '<li>$1</li>')
+      .replace(/\n\n/gim, '<p></p>')
+
+    const blob = new Blob([header + htmlContent + '</body></html>'], { type: 'application/msword;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-4 backdrop-blur-xs">
+      <div className="relative flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-ink-900/10 bg-white shadow-2xl">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-ink-900/10 px-6 py-4">
+          <div>
+            <span className="font-mono text-xs text-signal-slate">{proposal.tenderId}</span>
+            <h2 className="font-display text-lg font-semibold text-ink-900">{proposal.title}</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 rounded-lg border border-ink-900/15 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-ink-900/5 transition-colors"
+            >
+              {copied ? <><Check size={13} className="text-signal-green" /> Copied</> : <><Copy size={13} /> Copy</>}
+            </button>
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 rounded-lg border border-brass-500/40 bg-brass-500/10 px-3 py-1.5 text-xs font-medium text-brass-700 hover:bg-brass-500/20 transition-colors"
+            >
+              <Download size={13} /> Export Word (.doc)
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-signal-slate hover:bg-ink-900/5 hover:text-ink-900 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 text-sm leading-relaxed text-ink-900 bg-paper-50/50">
+          <div className="rounded-xl border border-ink-900/10 bg-white p-6 shadow-xs">
+            <MarkdownRenderer content={proposal.text} />
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="flex items-center justify-between border-t border-ink-900/10 px-6 py-3 text-xs text-signal-slate">
+          <span>TenderAI Automated Technical Bid Response</span>
+          <button
+            onClick={onClose}
+            className="rounded-lg bg-ink-900 px-4 py-1.5 font-semibold text-paper-50 hover:bg-ink-800 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
