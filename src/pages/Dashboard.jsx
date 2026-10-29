@@ -1,14 +1,42 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, MapPin, Building2, ArrowUpRight } from 'lucide-react'
+import { Search, MapPin, Building2, ArrowUpRight, Loader2, Sparkles, UploadCloud } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { StatusPill } from '../components/Seal'
-import { tenders, categories, statuses } from '../lib/mockTenders'
+import { getTenders, getTenderCategories } from '../lib/api'
+import { supabase } from '../lib/supabaseClient'
+import { tenders as mockTenders, categories as mockCategories, statuses } from '../lib/mockTenders'
+import UploadTenderModal from '../components/UploadTenderModal'
 
 export default function Dashboard() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
   const [status, setStatus] = useState('All')
+  const [tenders, setTenders] = useState([])
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (supabase) {
+      // Fetch from Supabase
+      Promise.all([getTenders(), getTenderCategories()])
+        .then(([t, c]) => {
+          setTenders(t)
+          setCategories(c)
+        })
+        .catch(() => {
+          // Fallback to mock data if DB fails
+          setTenders(mockTenders)
+          setCategories(mockCategories)
+        })
+        .finally(() => setLoading(false))
+    } else {
+      setTenders(mockTenders)
+      setCategories(mockCategories)
+      setLoading(false)
+    }
+  }, [])
 
   const filtered = useMemo(() => {
     return tenders.filter((t) => {
@@ -20,19 +48,28 @@ export default function Dashboard() {
       const matchesStatus = status === 'All' || t.status === status
       return matchesQuery && matchesCategory && matchesStatus
     })
-  }, [query, category, status])
+  }, [tenders, query, category, status])
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-1">
-        <p className="font-mono text-xs uppercase tracking-widest text-brass-600">
-          Register — {tenders.length} listings indexed
-        </p>
-        <h1 className="font-display text-3xl font-medium text-ink-900">Tender Board</h1>
-        <p className="max-w-2xl text-sm text-signal-slate">
-          Aggregated from government and public-institute tender pages. Open a dossier to review
-          eligibility and file your application without leaving the site.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-widest text-brass-600">
+            Register — {tenders.length} listings indexed
+          </p>
+          <h1 className="font-display text-3xl font-medium text-ink-900">Tender Board</h1>
+          <p className="max-w-2xl text-sm text-signal-slate">
+            Aggregated from government and public-institute tender pages. Open a dossier to review
+            eligibility and file your application without leaving the site.
+          </p>
+        </div>
+        <button
+          onClick={() => setIsUploadModalOpen(true)}
+          className="flex shrink-0 items-center gap-2 rounded-xl bg-ink-900 px-4 py-2.5 text-xs font-semibold text-paper-50 hover:bg-ink-800 transition-colors shadow-xs"
+        >
+          <UploadCloud size={16} className="text-brass-400" />
+          Upload Tender PDF
+        </button>
       </div>
 
       <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -72,51 +109,77 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
-        {filtered.map((t) => (
-          <Link
-            key={t.id}
-            to={`/tenders/${encodeURIComponent(t.id)}`}
-            className="group flex flex-col gap-3 rounded-xl border border-ink-900/10 bg-white p-5 transition-colors hover:border-brass-500/50 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs text-signal-slate">{t.id}</span>
-                <StatusPill status={t.status} />
-              </div>
-              <h3 className="mt-1.5 font-display text-lg font-medium text-ink-900 group-hover:text-brass-600">
-                {t.title}
-              </h3>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-signal-slate">
-                <span className="flex items-center gap-1.5">
-                  <Building2 size={14} strokeWidth={1.8} />
-                  {t.organization}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <MapPin size={14} strokeWidth={1.8} />
-                  {t.location}
-                </span>
-                <span>{t.sourcePortal}</span>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center justify-between gap-6 sm:flex-col sm:items-end sm:gap-1.5">
-              <div className="text-right">
-                <p className="font-mono text-sm font-medium text-ink-900">{t.estimatedValue}</p>
-                <p className="text-xs text-signal-slate">Closes {t.closing}</p>
-              </div>
-              <ArrowUpRight
-                size={18}
-                strokeWidth={1.8}
-                className="text-signal-slate transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-brass-600"
-              />
-            </div>
-          </Link>
-        ))}
-        {filtered.length === 0 && (
-          <div className="rounded-xl border border-dashed border-ink-900/15 p-10 text-center text-sm text-signal-slate">
-            No tenders match those filters. Try widening the search or category.
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={24} className="animate-spin text-signal-slate" />
           </div>
+        ) : (
+          <>
+            {filtered.map((t) => (
+              <Link
+                key={t.id}
+                to={`/tenders/${encodeURIComponent(t.id)}`}
+                className="group flex flex-col gap-3 rounded-xl border border-ink-900/10 bg-white p-5 transition-colors hover:border-brass-500/50 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-signal-slate">{t.id}</span>
+                    <StatusPill status={t.status} />
+                    {t.ai_dossier && (
+                      <span className="flex items-center gap-1 rounded-full border border-brass-500/30 bg-brass-500/10 px-2 py-0.5 text-xs font-medium text-brass-600">
+                        <Sparkles size={10} />
+                        AI analysed
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="mt-1.5 font-display text-lg font-medium text-ink-900 group-hover:text-brass-600">
+                    {t.title}
+                  </h3>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-signal-slate">
+                    <span className="flex items-center gap-1.5">
+                      <Building2 size={14} strokeWidth={1.8} />
+                      {t.organization}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <MapPin size={14} strokeWidth={1.8} />
+                      {t.location}
+                    </span>
+                    <span>{t.source_portal || t.sourcePortal}</span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center justify-between gap-6 sm:flex-col sm:items-end sm:gap-1.5">
+                  <div className="text-right">
+                    <p className="font-mono text-sm font-medium text-ink-900">
+                      {t.estimated_value || t.estimatedValue}
+                    </p>
+                    <p className="text-xs text-signal-slate">
+                      Closes {t.closing_at || t.closing}
+                    </p>
+                  </div>
+                  <ArrowUpRight
+                    size={18}
+                    strokeWidth={1.8}
+                    className="text-signal-slate transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-brass-600"
+                  />
+                </div>
+              </Link>
+            ))}
+            {filtered.length === 0 && (
+              <div className="rounded-xl border border-dashed border-ink-900/15 p-10 text-center text-sm text-signal-slate">
+                No tenders match those filters. Try widening the search or category.
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      <UploadTenderModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onTenderCreated={(newTender) => {
+          setTenders((prev) => [newTender, ...prev.filter((t) => t.id !== newTender.id)])
+        }}
+      />
     </AppLayout>
   )
 }
