@@ -2,32 +2,23 @@
 // Attempts live Gemini API via fetch (or SDK), and gracefully falls back to local AI generation engine
 // if API key is missing, invalid, or blocked. Ensures pitch-perfect demo performance.
 
-const GEMINI_API_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : ''
-const MODEL = 'gemini-1.5-flash'
+const GEMINI_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) || ''
+const MODEL = 'gemini-flash-latest'
 
 async function callGeminiAPI(prompt) {
   if (!GEMINI_API_KEY) {
     throw new Error('API_KEY_MISSING')
   }
 
-  const isBearerAuth = GEMINI_API_KEY.startsWith('AQ.') || GEMINI_API_KEY.startsWith('ya29.')
-  const url = isBearerAuth
-    ? `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
-    : `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`
-
-  const headers = {
-    'Content-Type': 'application/json',
-  }
-
-  if (isBearerAuth) {
-    headers['Authorization'] = `Bearer ${GEMINI_API_KEY}`
-  } else {
-    headers['x-goog-api-key'] = GEMINI_API_KEY
-  }
+  // Pass key as URL parameter as instructed in Google Cloud Console
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`
 
   const res = await fetch(url, {
     method: 'POST',
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': GEMINI_API_KEY,
+    },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.4, maxOutputTokens: 1500 },
