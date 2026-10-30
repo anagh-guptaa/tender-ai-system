@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Building2, MapPin, CalendarClock, Banknote, ShieldCheck, Loader2,
+  ArrowLeft, Building2, MapPin, CalendarClock, Banknote, ShieldCheck, Loader2, Sparkles, MessageSquare
 } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { StatusPill } from '../components/Seal'
 import AIDossier from '../components/AIDossier'
 import EligibilityReport from '../components/EligibilityReport'
+import TenderQADrawer from '../components/TenderQADrawer'
 import { getTenderById } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
 import { tenders as mockTenders } from '../lib/mockTenders'
@@ -15,6 +16,7 @@ export default function TenderDetail() {
   const { id } = useParams()
   const [tender, setTender] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isQaOpen, setIsQaOpen] = useState(false)
 
   useEffect(() => {
     const decoded = decodeURIComponent(id)
@@ -64,13 +66,26 @@ export default function TenderDetail() {
 
   return (
     <AppLayout>
-      <Link
-        to="/"
-        className="flex items-center gap-1.5 text-sm font-medium text-signal-slate hover:text-ink-900"
-      >
-        <ArrowLeft size={15} strokeWidth={1.8} />
-        Tender Board
-      </Link>
+      {/* Top Navigation & Fast Actions */}
+      <div className="flex items-center justify-between">
+        <Link
+          to="/"
+          className="flex items-center gap-1.5 text-sm font-medium text-signal-slate hover:text-ink-900 transition-colors"
+        >
+          <ArrowLeft size={15} strokeWidth={1.8} />
+          Tender Board
+        </Link>
+
+        {/* Quick Header Q&A Action */}
+        <button
+          type="button"
+          onClick={() => setIsQaOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-brass-500/30 bg-brass-500/10 px-3 py-1.5 text-xs font-semibold text-brass-800 hover:bg-brass-500/20 transition-all shadow-xs"
+        >
+          <Sparkles size={13} className="text-brass-600" />
+          Ask TenderAI
+        </button>
+      </div>
 
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -140,24 +155,57 @@ export default function TenderDetail() {
         <EligibilityReport tender={tender} />
       </div>
 
-      {/* CTA */}
-      <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-ink-900/10 pt-6">
-        {tender.status !== 'Closed' ? (
-          <Link
-            to={`/tenders/${encodeURIComponent(tender.id)}/apply`}
-            className="rounded-lg bg-ink-900 px-5 py-2.5 text-sm font-semibold text-paper-50 transition-opacity hover:opacity-90"
+      {/* CTA Footer Bar */}
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-ink-900/10 pt-6">
+        <div className="flex flex-wrap items-center gap-3">
+          {tender.status !== 'Closed' ? (
+            <Link
+              to={`/tenders/${encodeURIComponent(tender.id)}/apply`}
+              className="rounded-lg bg-ink-900 px-5 py-2.5 text-sm font-semibold text-paper-50 transition-opacity hover:opacity-90"
+            >
+              Fill application form
+            </Link>
+          ) : (
+            <span className="rounded-lg bg-ink-900/5 px-5 py-2.5 text-sm font-medium text-signal-slate">
+              Applications closed
+            </span>
+          )}
+
+          {/* Ask TenderAI CTA Button */}
+          <button
+            type="button"
+            onClick={() => setIsQaOpen(true)}
+            className="flex items-center gap-2 rounded-lg border border-ink-900/15 bg-white px-5 py-2.5 text-sm font-semibold text-ink-900 hover:bg-paper-100 hover:border-brass-500/50 transition-all shadow-xs"
           >
-            Fill application form
-          </Link>
-        ) : (
-          <span className="rounded-lg bg-ink-900/5 px-5 py-2.5 text-sm font-medium text-signal-slate">
-            Applications closed
-          </span>
-        )}
+            <Sparkles size={15} className="text-brass-600" />
+            Ask TenderAI (Q&A)
+          </button>
+        </div>
+
         <span className="text-xs text-signal-slate">
           Published {tender.published_at || tender.published}
         </span>
       </div>
+
+      {/* Floating Action Badge (Bottom Right) */}
+      <button
+        type="button"
+        onClick={() => setIsQaOpen(true)}
+        className="fixed bottom-6 right-6 z-30 flex items-center gap-2.5 rounded-full bg-ink-950 px-4 py-3 text-xs font-semibold text-paper-50 shadow-2xl border border-brass-500/40 hover:bg-ink-900 hover:scale-105 active:scale-95 transition-all group"
+      >
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brass-500/20 text-brass-400 group-hover:bg-brass-500/30 transition-colors">
+          <Sparkles size={13} />
+        </div>
+        <span>Ask TenderAI</span>
+        <span className="flex h-2 w-2 rounded-full bg-signal-green animate-pulse" />
+      </button>
+
+      {/* Interactive Tender Q&A Drawer */}
+      <TenderQADrawer
+        isOpen={isQaOpen}
+        onClose={() => setIsQaOpen(false)}
+        tender={tender}
+      />
     </AppLayout>
   )
 }
