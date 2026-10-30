@@ -764,6 +764,34 @@ OUTPUT JSON SCHEMA:
 // ── LOCAL DYNAMIC TENDER Q&A FALLBACK ENGINE ─────────────────────────────────
 function generateLocalAnswer(question, tender) {
   const q = question.toLowerCase()
+  // 0. Identity & Greetings ("who are you", "what are you", "hello", "hi")
+  if (
+    q.includes('who are you') || q.includes('what are you') || q.includes('your name') ||
+    q.includes('about yourself') || q.includes('who created you') || q.includes('what do you do')
+  ) {
+    return `### 🤖 I am TenderAI
+
+I am your dedicated **AI Procurement & Bidding Consultant**, designed specifically to analyze Indian government tender documents (GeM, CPPP, and State eProcurement notices).
+
+#### How I help with ${tender.title || 'this tender'}:
+- **Scope & Deliverables:** Explain what work or hardware upgrades need to be delivered.
+- **Financial & EMD Terms:** Verify bid security amounts, MSE/Startup exemptions, and payment milestones.
+- **Penalty Clauses:** Highlight liquidated damages, PBG forfeiture, and SLA requirements.
+- **Eligibility Criteria:** Check turnover thresholds and mandatory compliance documents.
+
+What would you like to explore regarding ${tender.id || 'this tender'}?`
+  }
+
+  if (/^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening))\b/i.test(q.trim())) {
+    return `### 👋 Hello!
+
+How can I help you evaluate **${tender.title || 'this tender'}** today? You can ask me to:
+- 📌 *Brief you on the project scope and deliverables*
+- 💰 *Check EMD & exemption rules*
+- ⚠️ *Explain penalties & liquidated damages*
+- 📋 *List mandatory documents and turnover criteria*`
+  }
+
   const id = tender.id || 'Current Tender'
   const title = tender.title || 'the procurement work'
   const org = tender.organization || 'the Procuring Authority'
@@ -935,7 +963,7 @@ ${docs.length > 0 ? docs.map((doc, idx) => `${idx + 1}. **${doc}**`).join('\n') 
   }
 
   // 10. Authority / Location ("who issued", "who is the client", "where is it")
-  if (q.includes('who') || q.includes('authority') || q.includes('client') || q.includes('where') || q.includes('location') || q.includes('place')) {
+  if (q.includes('who issued') || q.includes('who is the authority') || q.includes('who published') || q.includes('issuing authority') || q.includes('issuing entity') || q.includes('where is it') || q.includes('location') || q.includes('place of execution')) {
     return `### 🏢 Procuring Authority & Project Location
 
 - **Issuing Organization:** **${org}**
