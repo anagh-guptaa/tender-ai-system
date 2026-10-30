@@ -2,18 +2,23 @@
 // Attempts live Gemini API via fetch (or SDK), and gracefully falls back to local AI generation engine
 // if API key is missing, invalid, or blocked. Ensures pitch-perfect demo performance.
 
-const GEMINI_API_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : ''
-const MODEL = 'gemini-1.5-flash'
+const GEMINI_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) || ''
+const MODEL = 'gemini-flash-latest'
 
 async function callGeminiAPI(prompt) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY.startsWith('AQ.')) {
-    throw new Error('API_KEY_INVALID_OR_SERVICE_ACCOUNT')
+  if (!GEMINI_API_KEY) {
+    throw new Error('API_KEY_MISSING')
   }
 
+  // Pass key as URL parameter as instructed in Google Cloud Console
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': GEMINI_API_KEY,
+    },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.4, maxOutputTokens: 1500 },
@@ -750,6 +755,34 @@ OUTPUT JSON SCHEMA:
 // ── LOCAL DYNAMIC TENDER Q&A FALLBACK ENGINE ─────────────────────────────────
 function generateLocalAnswer(question, tender) {
   const q = question.toLowerCase()
+  // 0. Identity & Greetings ("who are you", "what are you", "hello", "hi")
+  if (
+    q.includes('who are you') || q.includes('what are you') || q.includes('your name') ||
+    q.includes('about yourself') || q.includes('who created you') || q.includes('what do you do')
+  ) {
+    return `### 🤖 I am TenderAI
+
+I am your dedicated **AI Procurement & Bidding Consultant**, designed specifically to analyze Indian government tender documents (GeM, CPPP, and State eProcurement notices).
+
+#### How I help with ${tender.title || 'this tender'}:
+- **Scope & Deliverables:** Explain what work or hardware upgrades need to be delivered.
+- **Financial & EMD Terms:** Verify bid security amounts, MSE/Startup exemptions, and payment milestones.
+- **Penalty Clauses:** Highlight liquidated damages, PBG forfeiture, and SLA requirements.
+- **Eligibility Criteria:** Check turnover thresholds and mandatory compliance documents.
+
+What would you like to explore regarding ${tender.id || 'this tender'}?`
+  }
+
+  if (/^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening))\b/i.test(q.trim())) {
+    return `### 👋 Hello!
+
+How can I help you evaluate **${tender.title || 'this tender'}** today? You can ask me to:
+- 📌 *Brief you on the project scope and deliverables*
+- 💰 *Check EMD & exemption rules*
+- ⚠️ *Explain penalties & liquidated damages*
+- 📋 *List mandatory documents and turnover criteria*`
+  }
+
   const id = tender.id || 'Current Tender'
   const title = tender.title || 'the procurement work'
   const org = tender.organization || 'the Procuring Authority'
@@ -757,10 +790,60 @@ function generateLocalAnswer(question, tender) {
   const emd = tender.emd || 'Standard Bid Security'
   const closing = tender.closing_at || 'Refer to NIT Schedule'
   const location = tender.location || 'Pan-India'
+  const desc = tender.description || ''
   const eligibility = Array.isArray(tender.eligibility) ? tender.eligibility : []
   const docs = Array.isArray(tender.documents_required) ? tender.documents_required : []
 
-  // 1. EMD & Exemption
+  // 1. Briefing & Core Objective ("explain about this tender", "brief me", "what i need to do", "summary", "overview", "what is this")
+  if (
+    q.includes('brief') || q.includes('explain') || q.includes('overview') || q.includes('summary') ||
+    q.includes('about this') || q.includes('need to do') || q.includes('what is this') || q.includes('tell me') ||
+    q.includes('what does this') || q.includes('introduction')
+  ) {
+    return `### 📌 Executive Brief: ${title}
+
+**Tender Reference:** \`${id}\` | **Issuing Authority:** **${org}**
+
+#### What is this tender about?
+${desc || `Turnkey execution of ${title} as mandated by ${org} for implementation across ${location}.`}
+
+#### Key Responsibilities & What You Need To Do:
+1. **Turnkey Supply & Delivery:** Procure, deliver, and install all specified equipment and systems at designated sites in **${location}**.
+2. **Technical Quality Standards:** Ensure all items are brand new, OEM compliant, and adhere strictly to specifications and certifications prescribed by ${org}.
+3. **Commissioning & Testing:** Conduct full operational tests and obtain formal commissioning sign-off from the departmental engineer.
+4. **Warranty & Post-Deployment Support:** Furnish comprehensive on-site warranty (typically 2 to 3 years) with prompt SLA defect rectification.
+
+#### Commercial Snapshot:
+- **Estimated Contract Value:** **${val}**
+- **Prescribed EMD:** **${emd}** *(Exemption applies for registered MSEs & Startups)*
+- **Submission Closing Deadline:** **${closing}**
+
+*Would you like me to elaborate on the technical specifications, eligibility criteria, or penalty clauses?*`
+  }
+
+  // 2. Specific Technical Upgrades, Hardware & Scope ("what type of upgrade", "what hardware", "specifications", "deliverables", "what equipment")
+  if (
+    q.includes('upgrade') || q.includes('type of') || q.includes('hardware') || q.includes('equipment') ||
+    q.includes('scope') || q.includes('deliverable') || q.includes('spec') || q.includes('technical') || q.includes('work')
+  ) {
+    return `### 🛠️ Technical Scope & Upgrade Specifications: ${title}
+
+Under tender **${id}**, the work involves technical execution in the **${tender.category || 'Specialized Procurement'}** sector:
+
+#### Core Assignment & Deliverables:
+${desc ? `- **Project Focus:** ${desc}` : `- **Project Focus:** Turnkey supply, on-site deployment, and system integration for ${org}.`}
+- **Target Deployment Zone:** Designated campuses/facilities across **${location}**.
+- **OEM Standards & Quality:** All supplied equipment must be original OEM certified with warranty cards and test certificates submitted with the technical bid.
+- **Maintenance & AMC Commitment:** 2 to 3 years comprehensive post-commissioning maintenance covering technical support, hardware replacements, and preventive inspections.
+
+#### Quality & Acceptance Milestones:
+1. **Pre-dispatch / Factory Inspection:** Verification of test certificates prior to shipment.
+2. **On-Site Acceptance Testing (SAT):** Joint inspection and sign-off by ${org}'s technical committee upon successful operational trial.
+
+*Would you like to know the required technical certifications or past experience thresholds to bid for this?*`
+  }
+
+  // 3. EMD & Exemption
   if (q.includes('emd') || q.includes('earnest') || q.includes('security') || q.includes('exempt')) {
     const isExempt = /exempt|nil|na|none/i.test(emd) || /mse|startup/i.test(emd)
     return `### 💰 EMD & Bid Security Details for ${id}
@@ -777,7 +860,7 @@ function generateLocalAnswer(question, tender) {
 - **Acceptable Modes:** If payable, EMD can be furnished via Demand Draft (DD), Banker’s Cheque, or Bank Guarantee (BG) from any scheduled commercial bank in favor of **${org}**.`
   }
 
-  // 2. Penalties, Delays, Liquidated Damages
+  // 4. Penalties, Delays, Liquidated Damages
   if (q.includes('penalty') || q.includes('liquidat') || q.includes('damage') || q.includes('delay') || q.includes('late') || q.includes('breach')) {
     return `### ⚠️ Penalty & Liquidated Damages (LD) Framework
 
@@ -794,7 +877,7 @@ For tender **${id}** issued by **${org}**, standard public procurement contract 
 > **Advisory:** Ensure all delivery schedules and on-site mobilization windows are tracked with buffer days to avoid liquidated damage deductions on milestone invoices.`
   }
 
-  // 3. Payment Terms & Milestone Invoicing
+  // 5. Payment Terms & Milestone Invoicing
   if (q.includes('payment') || q.includes('bill') || q.includes('milestone') || q.includes('advance') || q.includes('invoice') || q.includes('money')) {
     return `### 💳 Payment Terms & Milestone Invoicing Schedule
 
@@ -811,7 +894,7 @@ The commercial terms for **"${title}"** follow a milestone disbursement mechanis
 - Payments are disbursed directly via **RTGS/NEFT** within 30 to 45 working days following inspection report sign-off.`
   }
 
-  // 4. Warranty, Maintenance & SLA
+  // 6. Warranty, Maintenance & SLA
   if (q.includes('warranty') || q.includes('amc') || q.includes('maintenance') || q.includes('service') || q.includes('sla') || q.includes('support')) {
     return `### 🛠️ Warranty, Maintenance & Service Level Agreement (SLA)
 
@@ -825,7 +908,7 @@ As per technical specifications under tender **${id}**:
 - **Preventive Maintenance Visits:** Minimum **quarterly visits** (4 times a year) with recorded service reports submitted to **${org}**.`
   }
 
-  // 5. Eligibility, Turnover & Experience
+  // 7. Eligibility, Turnover & Experience
   if (q.includes('eligib') || q.includes('turnover') || q.includes('experience') || q.includes('criteria') || q.includes('qualif')) {
     return `### 📋 Bidder Eligibility & Financial Qualifications
 
@@ -842,7 +925,7 @@ ${eligibility.length > 0 ? eligibility.map((item, idx) => `${idx + 1}. **${item}
 > Joint ventures / consortium bidding rules depend on specific NIT instructions. Non-compliance with any single mandatory criterion triggers immediate technical disqualification.`
   }
 
-  // 6. Mandatory Documents Required
+  // 8. Mandatory Documents Required
   if (q.includes('document') || q.includes('certificat') || q.includes('pan') || q.includes('gst') || q.includes('oem') || q.includes('upload')) {
     return `### 📁 Mandatory Documents Checklist for Submission
 
@@ -855,7 +938,7 @@ ${docs.length > 0 ? docs.map((doc, idx) => `${idx + 1}. **${doc}**`).join('\n') 
 - Incomplete document bundles or blurry illegible scans are rejected without post-bid clarification.`
   }
 
-  // 7. Deadlines, Dates & Schedule
+  // 9. Deadlines, Dates & Schedule
   if (q.includes('date') || q.includes('deadline') || q.includes('closing') || q.includes('when') || q.includes('submission') || q.includes('due') || q.includes('time')) {
     return `### ⏳ Critical Deadlines & Milestone Schedule
 
@@ -870,25 +953,36 @@ ${docs.length > 0 ? docs.map((doc, idx) => `${idx + 1}. **${doc}**`).join('\n') 
 *Please submit bids at least 24 hours prior to the closing deadline (${closing}) to prevent last-minute server congestion or upload failures.*`
   }
 
-  // 8. General / Fallback Overview
+  // 10. Authority / Location ("who issued", "who is the client", "where is it")
+  if (q.includes('who issued') || q.includes('who is the authority') || q.includes('who published') || q.includes('issuing authority') || q.includes('issuing entity') || q.includes('where is it') || q.includes('location') || q.includes('place of execution')) {
+    return `### 🏢 Procuring Authority & Project Location
+
+- **Issuing Organization:** **${org}**
+- **Project Location / Jurisdiction:** **${location}**
+- **Official Procurement System:** ${tender.source_portal || 'Public Procurement Portal'}
+- **Tender Reference:** \`${id}\`
+
+All formal submissions, statutory correspondences, and milestone invoices must be addressed to the competent authority at **${org}**.`
+  }
+
+  // 11. General / Overview Fallback
   return `### 📌 Tender Compliance Overview: ${id}
 
-Here is a summary of the key parameters for **"${title}"**:
+Here is a summary of **"${title}"**:
 
 - **Procuring Entity:** **${org}**
+- **Scope Summary:** ${desc || 'Full turnkey execution and multi-year maintenance.'}
 - **Estimated Contract Value:** **${val}**
 - **EMD / Bid Security:** **${emd}**
 - **Submission Due Date:** **${closing}**
 - **Execution Location:** **${location}**
 
-#### You can ask me specific questions about:
-1. 💰 *EMD exemption rules for MSEs & Startups*
-2. ⚠️ *Liquidated damages & penalty clauses*
-3. 💳 *Milestone payment terms & invoicing*
-4. 🛠️ *Warranty, SLA, and maintenance rules*
-5. 📋 *Eligibility turnover & required documents*
-
-What specific requirement would you like me to clarify?`
+#### What would you like to know more about?
+- 📌 *Ask me to "brief me on this tender"*
+- 🛠️ *Ask "what type of upgrade or work is needed?"*
+- 💰 *Ask about "EMD exemption for MSEs"*
+- ⚠️ *Ask about "penalty clauses for delays"*
+- 💳 *Ask about "milestone payment terms"*`
 }
 
 // ── EXPORTED INTERACTIVE TENDER Q&A ASSISTANT ────────────────────────────────
