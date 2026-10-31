@@ -62,3 +62,31 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+
+/* =============================================================
+   OFFICIAL BID DOSSIER PRINT STYLES (Clean Vector PDF Export)
+   ============================================================= */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-dossier, #print-dossier * {
+    visibility: visible;
+  }
+  #print-dossier {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+}

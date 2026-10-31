@@ -31,6 +31,7 @@ export default function ApplicationForm() {
   const [proposalCopied, setProposalCopied] = useState(false)
   const [proposalViewMode, setProposalViewMode] = useState('preview') // 'preview' | 'edit'
   const [proposalError, setProposalError] = useState('')
+  const [isDossierModalOpen, setIsDossierModalOpen] = useState(false)
 
   useEffect(() => {
     const decoded = decodeURIComponent(id)
