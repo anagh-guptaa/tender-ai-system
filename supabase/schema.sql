@@ -196,3 +196,39 @@ values
   '["Class-A registered civil contractor with PWD","Minimum 5 completed road projects ≥ ₹2 Cr each"]',
   '["PWD Contractor Registration","Machinery Ownership Proof","Completion Certificates","EMD Instrument"]'
 );
+
+
+-- =============================================================
+-- VECTOR RAG EXTENSION & pgvector (For Semantic AI Search)
+-- =============================================================
+create extension if not exists vector;
+alter table public.tenders add column if not exists embedding vector(3072);
+
+-- Vector Similarity Match RPC function
+create or replace function public.match_tenders (
+  query_embedding vector(3072),
+  match_threshold float,
+  match_count int
+)
+returns table (
+  id text,
+  title text,
+  organization text,
+  similarity float
+)
+language plpgsql
+as $$
+begin
+  return query
+  select
+    tenders.id,
+    tenders.title,
+    tenders.organization,
+    1 - (tenders.embedding <=> query_embedding) as similarity
+  from public.tenders
+  where tenders.embedding is not null
+    and 1 - (tenders.embedding <=> query_embedding) > match_threshold
+  order by similarity desc
+  limit match_count;
+end;
+$$;

@@ -2,6 +2,7 @@
 // Import these instead of calling supabase directly from components.
 
 import { supabase } from './supabaseClient'
+import { tenders as mockTenders } from './mockTenders'
 
 // ── COMPANY PROFILE ───────────────────────────────────────────────────────────
 
@@ -84,11 +85,19 @@ export async function getTenders({ query = '', category = 'All', status = 'All' 
     if (!error && data) dbTenders = data
   }
 
-  // Merge with any custom uploaded tenders
+  // Merge with custom uploaded & crawler-ingested tenders
   const localUploaded = JSON.parse(localStorage.getItem('dossier_uploaded_tenders') || '[]')
   const map = new Map()
-  dbTenders.forEach((t) => map.set(t.id, t))
-  localUploaded.forEach((t) => map.set(t.id, t))
+
+  // 1. Base master registry of 22+ active government & PSU listings
+  mockTenders.forEach((t) => map.set(t.id, t))
+
+  // 2. Overlay any live records from Supabase database
+  dbTenders.forEach((t) => map.set(t.id, { ...(map.get(t.id) || {}), ...t }))
+
+  // 3. Overlay any newly ingested or user-uploaded tenders
+  localUploaded.forEach((t) => map.set(t.id, { ...(map.get(t.id) || {}), ...t }))
+
   let combined = Array.from(map.values())
 
   if (category !== 'All') combined = combined.filter((t) => t.category === category)
@@ -119,6 +128,10 @@ export async function getTenderById(id) {
   const localMatch = localUploaded.find((t) => t.id === id)
   if (localMatch) return localMatch
 
+  // Check base registry
+  const mockMatch = mockTenders.find((t) => t.id === id)
+  if (mockMatch) return mockMatch
+
   throw new Error('Tender not found')
 }
 
@@ -141,6 +154,7 @@ export async function saveTenderDossier(tenderId, dossierText) {
 
 export async function getTenderCategories() {
   const categoriesSet = new Set()
+  mockTenders.forEach((t) => t.category && categoriesSet.add(t.category))
   if (supabase) {
     const { data } = await supabase.from('tenders').select('category').catch(() => ({ data: [] }))
     if (data) data.forEach((r) => r.category && categoriesSet.add(r.category))
