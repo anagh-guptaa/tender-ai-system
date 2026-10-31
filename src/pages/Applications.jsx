@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileStack, Loader2, ArrowUpRight, FileText, Download, Copy, Check, X } from 'lucide-react'
+import { FileStack, Loader2, ArrowUpRight, FileText, Download, Copy, Check, X, Printer, FileDown } from 'lucide-react'
+import BidDossierModal from '../components/BidDossierModal'
+import { downloadOfficialNIT } from '../lib/dossierExporter'
 import AppLayout from '../components/AppLayout'
 import { StatusPill } from '../components/Seal'
 import { useAuth } from '../context/AuthContext'
@@ -20,6 +22,7 @@ export default function Applications() {
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedProposal, setSelectedProposal] = useState(null)
+  const [selectedDossierApp, setSelectedDossierApp] = useState(null)
 
   useEffect(() => {
     if (supabase && user) {
