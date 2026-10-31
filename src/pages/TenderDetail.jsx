@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Building2, MapPin, CalendarClock, Banknote, ShieldCheck, Loader2, Sparkles, MessageSquare
+  ArrowLeft, Building2, MapPin, CalendarClock, Banknote, ShieldCheck, Loader2, Sparkles, MessageSquare, FileDown
 } from 'lucide-react'
+import { downloadOfficialNIT } from '../lib/dossierExporter'
 import AppLayout from '../components/AppLayout'
 import { StatusPill } from '../components/Seal'
 import AIDossier from '../components/AIDossier'
@@ -76,15 +77,26 @@ export default function TenderDetail() {
           Tender Board
         </Link>
 
-        {/* Quick Header Q&A Action */}
-        <button
-          type="button"
-          onClick={() => setIsQaOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-brass-500/30 bg-brass-500/10 px-3 py-1.5 text-xs font-semibold text-brass-800 hover:bg-brass-500/20 transition-all shadow-xs"
-        >
-          <Sparkles size={13} className="text-brass-600" />
-          Ask TenderAI
-        </button>
+        {/* Quick Header Actions */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => downloadOfficialNIT(tender)}
+            className="flex items-center gap-1.5 rounded-lg border border-ink-900/15 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 hover:bg-paper-100 hover:border-brass-500/40 transition-all shadow-xs"
+            title="Download or print official Government NIT specifications document"
+          >
+            <FileDown size={13} className="text-brass-600" />
+            Official NIT Document
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsQaOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-brass-500/30 bg-brass-500/10 px-3 py-1.5 text-xs font-semibold text-brass-800 hover:bg-brass-500/20 transition-all shadow-xs"
+          >
+            <Sparkles size={13} className="text-brass-600" />
+            Ask TenderAI
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-col gap-2">
@@ -170,6 +182,17 @@ export default function TenderDetail() {
               Applications closed
             </span>
           )}
+
+          {/* Official NIT Document */}
+          <button
+            type="button"
+            onClick={() => downloadOfficialNIT(tender)}
+            className="flex items-center gap-2 rounded-lg border border-ink-900/15 bg-white px-4 py-2.5 text-sm font-semibold text-ink-900 hover:bg-paper-100 transition-all shadow-xs"
+            title="Download or print official Government NIT specifications document"
+          >
+            <FileDown size={15} className="text-brass-600" />
+            Official NIT Document
+          </button>
 
           {/* Ask TenderAI CTA Button */}
           <button
